@@ -80,6 +80,21 @@ def main():
             print('Waiting {}/{} for {} {} {}...'.format(i + 1, count, pid, *claz))
             time.sleep(1)
 
+    for pid, claz, _ in pids:
+        if not exists(pid):
+            continue
+
+        if 'term' in claz[0]:
+            print('ignored terminal: {}: {}'.format(*claz))
+            continue
+
+
+        print()
+        print('Still alive: {} {}: {}'.format(pid, *clazz))
+        resp = input('Stop the process? [Y/n]: ')
+        if '' == resp or 'Y' == resp or 'y' == resp:
+            os.kill(pid, 3)
+
 
 def exists(pid) -> bool:
     try:
