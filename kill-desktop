@@ -73,7 +73,7 @@ def main():
             print('ignored terminal: {}: {}'.format(*claz))
             continue
 
-        for i in range(5):
+        for i in range(count):
             if not exists(pid):
                 break
 
