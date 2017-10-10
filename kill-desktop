@@ -90,7 +90,7 @@ def main():
 
 
         print()
-        print('Still alive: {} {}: {}'.format(pid, *clazz))
+        print('Still alive: {} {}: {}'.format(pid, *claz))
         resp = input('Stop the process? [Y/n]: ')
         if '' == resp or 'Y' == resp or 'y' == resp:
             os.kill(pid, 3)
