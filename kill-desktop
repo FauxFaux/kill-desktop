@@ -38,9 +38,9 @@ def main():
             window = display.create_resource_object('window', window_id)
             pid_response = window.get_property(wm_pid, Xatom.CARDINAL, 0, 2)
             if not pid_response:
-                print('A window seems to lack a pid: {}: {}', window.get_wm_class(), window)
+                print('A window seems to lack a pid: {}: {}'.format(window.get_wm_class(), window))
             if 1 != len(pid_response.value):
-                print('A window has the wrong number of pids: {}: {}', window.get_wm_class(), window)
+                print('A window has the wrong number of pids: {}: {}'.format(window.get_wm_class(), window))
 
             pids.add((pid_response.value[0], window.get_wm_class(), window))
 
@@ -73,12 +73,7 @@ def main():
             print('ignored terminal: {}: {}'.format(*claz))
             continue
 
-        for i in range(count):
-            if not exists(pid):
-                break
-
-            print('Waiting {}/{} for {} {} {}...'.format(i + 1, count, pid, *claz))
-            time.sleep(1)
+        wait_exit(10, pid, claz)
 
     for pid, claz, _ in pids:
         if not exists(pid):
@@ -88,12 +83,27 @@ def main():
             print('ignored terminal: {}: {}'.format(*claz))
             continue
 
+        while True:
+            print()
+            print('Still alive: {} {}: {}'.format(pid, *claz))
+            resp = input('Stop the process before rebooting? [Y/n/^C]: ')
+            if '' == resp or 'Y' == resp or 'y' == resp:
+                os.kill(pid, 3)
+                if wait_exit(10, pid, claz):
+                    break
+            else:
+                break
 
-        print()
-        print('Still alive: {} {}: {}'.format(pid, *claz))
-        resp = input('Stop the process? [Y/n]: ')
-        if '' == resp or 'Y' == resp or 'y' == resp:
-            os.kill(pid, 3)
+
+def wait_exit(count, pid, claz) -> bool:
+    for i in range(count):
+        if not exists(pid):
+            return True
+
+        print('Waiting {}/{} for {} {} {}...'.format(i + 1, count, pid, *claz))
+        time.sleep(1)
+
+    return False
 
 
 def exists(pid) -> bool:
