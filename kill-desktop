@@ -39,10 +39,14 @@ def main():
             pid_response = window.get_property(wm_pid, Xatom.CARDINAL, 0, 2)
             if not pid_response:
                 print('A window seems to lack a pid: {}: {}'.format(window.get_wm_class(), window))
-            if 1 != len(pid_response.value):
+                pid = None
+            elif 1 != len(pid_response.value):
                 print('A window has the wrong number of pids: {}: {}'.format(window.get_wm_class(), window))
+                pid = None
+            else:
+                pid = pid_response.value[0]
 
-            pids.add((pid_response.value[0], window.get_wm_class(), window))
+            pids.add((pid, window.get_wm_class(), window))
 
             # for atom in screen.root.list_properties():
             #     print("{}: {}".format(atom, display.get_atom_name(atom)))
@@ -50,7 +54,10 @@ def main():
     if args.no_act:
         print('Victims:')
         for pid, claz, _ in pids:
-            print('{:-8} {}: {}'.format(pid, *claz))
+            if pid:
+                print('{:-8} {}: {}'.format(pid, *claz))
+            else:
+                print(' NAUGHTY {}: {}'.format(pid, *claz))
         return
 
     if False:
