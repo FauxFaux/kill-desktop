@@ -77,7 +77,9 @@ fn main() -> Result<(), Error> {
         }
     }
 
-    println!("{:?}", procs);
+    for proc in &procs {
+        println!("{} {} {:?}", proc.window_id, proc.class, proc.pid)
+    }
 
     Ok(())
 }
