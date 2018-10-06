@@ -2,21 +2,16 @@
 name = "kill-desktop"
 version = "0.1.0"
 authors = ["Chris West (Faux) <git@goeswhere.com>"]
-edition = "2015"
 
 [dependencies]
+dirs = "1"
+failure = "0.1"
 nix = "0.11"
+regex = "1"
+serde_derive = "1"
+serde = "1"
+toml = "0.4"
 xcb = "0.8"
-
-[dependencies.clap]
-version = "2"
-default-features = false
-
-[dependencies.failure]
-# -= derive
-version = "0.1"
-default-features = false
-features = ["std"]
 
 [profile.release]
 lto = true

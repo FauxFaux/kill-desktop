@@ -1,0 +1,6 @@
+ignore = [
+    "term",
+]
+ignores_delete = [
+    "slack",
+]

@@ -1,15 +1,22 @@
-extern crate clap;
+extern crate dirs;
+#[macro_use]
+extern crate serde_derive;
 #[macro_use]
 extern crate failure;
 extern crate nix;
+extern crate regex;
+extern crate toml;
 extern crate xcb;
 
 use std::env;
+use std::fs;
+use std::io::Read;
+use std::path::PathBuf;
 use std::thread;
 
-use clap::Arg;
 use failure::Error;
 use failure::ResultExt;
+use regex::Regex;
 use xcb::xproto as xp;
 
 #[derive(Clone, Debug)]
@@ -20,17 +27,28 @@ struct Proc {
     supported_protocols: Vec<xcb::Atom>,
 }
 
-fn main() -> Result<(), Error> {
-    let matches = clap::App::new("kill-desktop")
-        .arg(
-            Arg::with_name("no-act")
-                .short("n")
-                .long("no-act")
-                .help("list what needs to be killed, but don't do it"),
-        )
-        .get_matches();
+#[derive(Clone, Debug, Deserialize)]
+struct RawConfig {
+    ignore: Vec<String>,
+    ignores_delete: Vec<String>,
+}
 
-    let no_act = matches.is_present("no-act");
+struct Config {
+    ignore: Vec<Regex>,
+    ignores_delete: Vec<Regex>,
+}
+
+fn main() -> Result<(), Error> {
+    let mut args = env::args_os();
+    let _us = args.next();
+    if let Some(val) = args.next() {
+        bail!("no arguments expected, got: {:?}", val);
+    }
+
+    let config = load_config()?.into_config()?;
+
+    // TODO
+    let no_act = true;
 
     let (conn, _preferred_screen) = xcb::Connection::connect(None).with_context(|_| {
         format_err!(
@@ -49,10 +67,16 @@ fn main() -> Result<(), Error> {
 
     for screen in setup.roots() {
         let root = screen.root();
-        for window_id in
+        'windows: for window_id in
             get_property::<xcb::Window>(&conn, root, atom_client_list, xp::ATOM_WINDOW, 4_096)?
         {
             let class = read_class(&conn, window_id)?;
+
+            for ignore in &config.ignore {
+                if ignore.is_match(&class) {
+                    continue 'windows;
+                }
+            }
 
             if class.contains("term") {
                 eprintln!("ignoring terminal: {:?}", class);
@@ -129,6 +153,67 @@ fn main() -> Result<(), Error> {
     }
 
     Ok(())
+}
+
+fn find_config() -> Result<PathBuf, Error> {
+    let mut tried = Vec::new();
+
+    if let Some(mut config) = dirs::config_dir() {
+        config.push("kill-desktop");
+        fs::create_dir_all(&config)?;
+        config.push("config.toml");
+        if config.is_file() {
+            return Ok(config);
+        }
+
+        tried.push(config);
+    }
+
+    if let Some(mut config) = dirs::home_dir() {
+        config.push(".kill-desktop.toml");
+        if config.is_file() {
+            return Ok(config);
+        }
+
+        tried.push(config);
+    }
+
+    let config = PathBuf::from("kill-desktop.toml");
+    if config.is_file() {
+        return Ok(config);
+    }
+
+    tried.push(config);
+
+    Err(format_err!(
+        "couldn't find a config file, tried: {:?}",
+        tried
+    ))
+}
+
+fn load_config() -> Result<RawConfig, Error> {
+    let path = find_config()?;
+    let mut file = fs::File::open(&path).with_context(|_| format_err!("reading {:?}", path))?;
+    let mut bytes = Vec::with_capacity(4096);
+    file.read_to_end(&mut bytes)?;
+    Ok(toml::from_slice(&bytes)?)
+}
+
+impl RawConfig {
+    fn into_config(self) -> Result<Config, Error> {
+        Ok(Config {
+            ignore: self
+                .ignore
+                .into_iter()
+                .map(|s| Regex::new(&s))
+                .collect::<Result<Vec<_>, regex::Error>>()?,
+            ignores_delete: self
+                .ignores_delete
+                .into_iter()
+                .map(|s| Regex::new(&s))
+                .collect::<Result<Vec<_>, regex::Error>>()?,
+        })
+    }
 }
 
 fn alive(pid: u32) -> Result<bool, Error> {
