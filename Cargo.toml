@@ -3,6 +3,17 @@ name = "kill-desktop"
 version = "0.1.0"
 authors = ["Chris West (Faux) <git@goeswhere.com>"]
 
+description = "Wait politetly for graphical applications to exit"
+repository = "https://github.com/FauxFaux/kill-desktop"
+readme = "README.md"
+
+# none of the categories really make any sense..
+categories = ["gui", "os"]
+license = "MIT OR Apache-2.0"
+
+[badges.travis-ci]
+repository = "FauxFaux/kill-desktop"
+
 [dependencies]
 dirs = "1"
 failure = "0.1"
