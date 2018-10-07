@@ -18,6 +18,7 @@ mod config;
 mod x;
 
 use failure::Error;
+use failure::ResultExt;
 use termion::raw::IntoRawMode;
 
 use config::Config;
@@ -50,6 +51,7 @@ fn main() -> Result<(), Error> {
         let procs = find_procs(&config, &mut conn)?;
 
         if procs.is_empty() {
+            println!("No applications found, exiting.\r");
             break;
         }
 
@@ -84,6 +86,7 @@ fn main() -> Result<(), Error> {
                     }
                 }
                 b'q' | CTRL_C | CTRL_D | CTRL_Z => {
+                    println!("User asked, exiting\r");
                     break 'app;
                 }
                 other => println!("unsupported command: {:?}\r", other as char),
@@ -100,8 +103,10 @@ fn find_procs(config: &Config, conn: &mut x::XServer) -> Result<Vec<Proc>, Error
     let mut procs = Vec::with_capacity(16);
 
     conn.for_windows(|conn, window_id| {
-        if let Some(proc) = gather_window_details(&config, conn, window_id)? {
-            procs.push(proc);
+        match gather_window_details(&config, conn, window_id) {
+            Ok(Some(proc)) => procs.push(proc),
+            Ok(None) => (),
+            Err(e) => eprintln!("couldn't get details (window vanished?): {:?} {:?}", window_id, e),
         }
         Ok(())
     })?;
@@ -138,14 +143,17 @@ fn gather_window_details(
     conn: &x::XServer,
     window: x::XWindow,
 ) -> Result<Option<Proc>, Error> {
-    let class = conn.read_class(window)?;
+    let class = conn.read_class(window)
+        .with_context(|_| format_err!("finding class of {:?}", window))?;
+
     for ignore in &config.ignore {
         if ignore.is_match(&class) {
             return Ok(None);
         }
     }
 
-    let pids = conn.pids(window)?;
+    let pids = conn.pids(window)
+        .with_context(|_| format_err!("finding pid of {:?} ({:?})", class, window))?;
 
     let pid = match pids.len() {
         1 => pids[0],
@@ -170,8 +178,9 @@ fn gather_window_details(
     Ok(Some(Proc {
         window,
         pid,
+        supported_protocols: conn.supported_protocols(window)
+            .with_context(|_| format_err!("finding protocols of {:?} (pid {})", class, pid))?,
         class,
-        supported_protocols: conn.supported_protocols(window)?,
     }))
 }
 
