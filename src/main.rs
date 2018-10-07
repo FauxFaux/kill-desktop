@@ -38,6 +38,14 @@ struct Config {
     ignores_delete: Vec<Regex>,
 }
 
+#[derive(Copy, Clone, Debug)]
+struct ExtraAtoms {
+    net_client_list: xcb::Atom,
+    net_wm_pid: xcb::Atom,
+    wm_protocols: xcb::Atom,
+    wm_delete_window: xcb::Atom,
+}
+
 fn main() -> Result<(), Error> {
     let mut args = env::args_os();
     let _us = args.next();
@@ -59,70 +67,34 @@ fn main() -> Result<(), Error> {
 
     let setup = conn.get_setup();
 
-    let atom_client_list = existing_atom(&conn, "_NET_CLIENT_LIST")?;
-    let atom_wm_pid = existing_atom(&conn, "_NET_WM_PID")?;
-    let atom_wm_proto = existing_atom(&conn, "WM_PROTOCOLS")?;
+    let atoms = ExtraAtoms {
+        net_client_list: existing_atom(&conn, "_NET_CLIENT_LIST")?,
+        net_wm_pid: existing_atom(&conn, "_NET_WM_PID")?,
+        wm_protocols: existing_atom(&conn, "WM_PROTOCOLS")?,
+        wm_delete_window: existing_atom(&conn, "WM_DELETE_WINDOW")?,
+    };
 
     let mut procs = Vec::with_capacity(16);
 
     for screen in setup.roots() {
-        let root = screen.root();
-        'windows: for window_id in
-            get_property::<xcb::Window>(&conn, root, atom_client_list, xp::ATOM_WINDOW, 4_096)?
-        {
-            let class = read_class(&conn, window_id)?;
-
-            for ignore in &config.ignore {
-                if ignore.is_match(&class) {
-                    continue 'windows;
-                }
+        for window_id in get_property::<xcb::Window>(
+            &conn,
+            screen.root(),
+            atoms.net_client_list,
+            xp::ATOM_WINDOW,
+            4_096,
+        )? {
+            if let Some(proc) = gather_window_details(&config, &conn, atoms, window_id)? {
+                procs.push(proc);
             }
-
-            if class.contains("term") {
-                eprintln!("ignoring terminal: {:?}", class);
-                continue;
-            }
-
-            let pids = get_property::<u32>(&conn, window_id, atom_wm_pid, xp::ATOM_CARDINAL, 2)?;
-            let pid = match pids.len() {
-                1 => pids[0],
-                _ => {
-                    eprintln!(
-                        "a window, {:?} ({}), has the wrong number of pids: {:?}",
-                        class, window_id, pids
-                    );
-                    continue;
-                }
-            };
-
-            match alive(pid) {
-                Ok(true) => (),
-                Ok(false) => {
-                    eprintln!("{:?} (pid {}), wasn't even alive to start with", class, pid);
-                    continue;
-                }
-                Err(other) => eprintln!("{:?} (pid {}): kill test failed: {:?}", class, pid, other),
-            }
-
-            let supported_protocols =
-                get_property::<xcb::Atom>(&conn, window_id, atom_wm_proto, xp::ATOM_ATOM, 1_024)?;
-
-            procs.push(Proc {
-                window_id,
-                pid,
-                class,
-                supported_protocols,
-            })
         }
     }
 
     procs.sort_by_key(|proc| (proc.class.to_string(), proc.pid));
 
-    let atom_wm_delete = existing_atom(&conn, "WM_DELETE_WINDOW")?;
-
     if !no_act {
         for proc in &procs {
-            delete_window(&conn, atom_wm_proto, atom_wm_delete, proc)?;
+            delete_window(&conn, atoms, proc)?;
         }
     }
 
@@ -142,10 +114,6 @@ fn main() -> Result<(), Error> {
         println!();
         println!("Still waiting for...");
         for proc in &procs {
-            if !no_act {
-                delete_window(&conn, atom_wm_proto, atom_wm_delete, proc)?;
-            }
-
             println!("{:>6} {}", proc.pid, proc.class)
         }
 
@@ -153,6 +121,55 @@ fn main() -> Result<(), Error> {
     }
 
     Ok(())
+}
+
+fn gather_window_details(
+    config: &Config,
+    conn: &xcb::Connection,
+    atoms: ExtraAtoms,
+    window_id: xcb::Window,
+) -> Result<Option<Proc>, Error> {
+    let class = read_class(&conn, window_id)?;
+    for ignore in &config.ignore {
+        if ignore.is_match(&class) {
+            return Ok(None);
+        }
+    }
+
+    let pids = get_property::<u32>(&conn, window_id, atoms.net_wm_pid, xp::ATOM_CARDINAL, 2)?;
+
+    let pid = match pids.len() {
+        1 => pids[0],
+        _ => {
+            eprintln!(
+                "a window, {:?} ({}), has the wrong number of pids: {:?}",
+                class, window_id, pids
+            );
+            return Ok(None);
+        }
+    };
+
+    match alive(pid) {
+        Ok(true) => (),
+        Ok(false) => {
+            eprintln!("{:?} (pid {}), wasn't even alive to start with", class, pid);
+            return Ok(None);
+        }
+        Err(other) => eprintln!("{:?} (pid {}): kill test failed: {:?}", class, pid, other),
+    }
+
+    Ok(Some(Proc {
+        window_id,
+        pid,
+        class,
+        supported_protocols: get_property::<xcb::Atom>(
+            &conn,
+            window_id,
+            atoms.wm_protocols,
+            xp::ATOM_ATOM,
+            1_024,
+        )?,
+    }))
 }
 
 fn find_config() -> Result<PathBuf, Error> {
@@ -238,17 +255,18 @@ fn read_class(conn: &xcb::Connection, window_id: xcb::Window) -> Result<String, 
     Ok(String::from_utf8_lossy(class).to_string())
 }
 
-fn delete_window(
-    conn: &xcb::Connection,
-    atom_wm_proto: u32,
-    atom_wm_delete: u32,
-    proc: &Proc,
-) -> Result<(), Error> {
+fn delete_window(conn: &xcb::Connection, atoms: ExtraAtoms, proc: &Proc) -> Result<(), Error> {
     let event = xcb::xproto::ClientMessageEvent::new(
         32,
         proc.window_id,
-        atom_wm_proto,
-        xcb::xproto::ClientMessageData::from_data32([atom_wm_delete, xcb::CURRENT_TIME, 0, 0, 0]),
+        atoms.wm_protocols,
+        xcb::xproto::ClientMessageData::from_data32([
+            atoms.wm_delete_window,
+            xcb::CURRENT_TIME,
+            0,
+            0,
+            0,
+        ]),
     );
     xcb::send_event_checked(
         &conn,
