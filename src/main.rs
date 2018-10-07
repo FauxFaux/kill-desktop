@@ -12,27 +12,18 @@ use std::env;
 use std::thread;
 
 mod config;
+mod x;
 
 use failure::Error;
-use failure::ResultExt;
-use xcb::xproto as xp;
 
 use config::Config;
 
 #[derive(Clone, Debug)]
 struct Proc {
-    window_id: xcb::Window,
+    window: x::XWindow,
     class: String,
     pid: u32,
     supported_protocols: Vec<xcb::Atom>,
-}
-
-#[derive(Copy, Clone, Debug)]
-struct ExtraAtoms {
-    net_client_list: xcb::Atom,
-    net_wm_pid: xcb::Atom,
-    wm_protocols: xcb::Atom,
-    wm_delete_window: xcb::Atom,
 }
 
 fn main() -> Result<(), Error> {
@@ -47,43 +38,22 @@ fn main() -> Result<(), Error> {
     // TODO
     let no_act = true;
 
-    let (conn, _preferred_screen) = xcb::Connection::connect(None).with_context(|_| {
-        format_err!(
-            "connecting using DISPLAY={:?}",
-            env::var("DISPLAY").unwrap_or_else(|_| "{unspecified/invalid}".to_string())
-        )
-    })?;
-
-    let setup = conn.get_setup();
-
-    let atoms = ExtraAtoms {
-        net_client_list: existing_atom(&conn, "_NET_CLIENT_LIST")?,
-        net_wm_pid: existing_atom(&conn, "_NET_WM_PID")?,
-        wm_protocols: existing_atom(&conn, "WM_PROTOCOLS")?,
-        wm_delete_window: existing_atom(&conn, "WM_DELETE_WINDOW")?,
-    };
+    let mut conn = x::XServer::new()?;
 
     let mut procs = Vec::with_capacity(16);
 
-    for screen in setup.roots() {
-        for window_id in get_property::<xcb::Window>(
-            &conn,
-            screen.root(),
-            atoms.net_client_list,
-            xp::ATOM_WINDOW,
-            4_096,
-        )? {
-            if let Some(proc) = gather_window_details(&config, &conn, atoms, window_id)? {
-                procs.push(proc);
-            }
+    conn.for_windows(|conn, window_id| {
+        if let Some(proc) = gather_window_details(&config, conn, window_id)? {
+            procs.push(proc);
         }
-    }
+        Ok(())
+    })?;
 
     procs.sort_by_key(|proc| (proc.class.to_string(), proc.pid));
 
     if !no_act {
         for proc in &procs {
-            delete_window(&conn, atoms, proc)?;
+            conn.delete_window(proc.window)?;
         }
     }
 
@@ -114,25 +84,24 @@ fn main() -> Result<(), Error> {
 
 fn gather_window_details(
     config: &Config,
-    conn: &xcb::Connection,
-    atoms: ExtraAtoms,
-    window_id: xcb::Window,
+    conn: &x::XServer,
+    window: x::XWindow,
 ) -> Result<Option<Proc>, Error> {
-    let class = read_class(&conn, window_id)?;
+    let class = conn.read_class(window)?;
     for ignore in &config.ignore {
         if ignore.is_match(&class) {
             return Ok(None);
         }
     }
 
-    let pids = get_property::<u32>(&conn, window_id, atoms.net_wm_pid, xp::ATOM_CARDINAL, 2)?;
+    let pids = conn.pids(window)?;
 
     let pid = match pids.len() {
         1 => pids[0],
         _ => {
             eprintln!(
-                "a window, {:?} ({}), has the wrong number of pids: {:?}",
-                class, window_id, pids
+                "a window, {:?} ({:?}), has the wrong number of pids: {:?}",
+                class, window, pids
             );
             return Ok(None);
         }
@@ -148,16 +117,10 @@ fn gather_window_details(
     }
 
     Ok(Some(Proc {
-        window_id,
+        window,
         pid,
         class,
-        supported_protocols: get_property::<xcb::Atom>(
-            &conn,
-            window_id,
-            atoms.wm_protocols,
-            xp::ATOM_ATOM,
-            1_024,
-        )?,
+        supported_protocols: conn.supported_protocols(window)?,
     }))
 }
 
@@ -174,58 +137,6 @@ fn alive(pid: u32) -> Result<bool, Error> {
     })
 }
 
-fn read_class(conn: &xcb::Connection, window_id: xcb::Window) -> Result<String, Error> {
-    let class = get_property::<u8>(&conn, window_id, xp::ATOM_WM_CLASS, xp::ATOM_STRING, 1024)?;
-    let class = match class.iter().position(|b| 0 == *b) {
-        Some(pos) => &class[..pos],
-        None => &class[..],
-    };
-    Ok(String::from_utf8_lossy(class).to_string())
-}
-
-fn delete_window(conn: &xcb::Connection, atoms: ExtraAtoms, proc: &Proc) -> Result<(), Error> {
-    let event = xcb::xproto::ClientMessageEvent::new(
-        32,
-        proc.window_id,
-        atoms.wm_protocols,
-        xcb::xproto::ClientMessageData::from_data32([
-            atoms.wm_delete_window,
-            xcb::CURRENT_TIME,
-            0,
-            0,
-            0,
-        ]),
-    );
-    xcb::send_event_checked(
-        &conn,
-        true,
-        proc.window_id,
-        xcb::xproto::EVENT_MASK_NO_EVENT,
-        &event,
-    )
-    .request_check()?;
-    Ok(())
-}
-
 fn sleep_ms(ms: u64) {
     thread::sleep(::std::time::Duration::from_millis(ms))
-}
-
-fn existing_atom(conn: &xcb::Connection, name: &'static str) -> Result<xcb::Atom, Error> {
-    Ok(xcb::intern_atom(&conn, true, name)
-        .get_reply()
-        .with_context(|_| format_err!("WM doesn't support {}", name))?
-        .atom())
-}
-
-fn get_property<T: Clone>(
-    conn: &xcb::Connection,
-    window: xcb::Window,
-    property: xcb::Atom,
-    prop_type: xcb::Atom,
-    length: u32,
-) -> Result<Vec<T>, Error> {
-    let req = xcb::get_property(&conn, false, window, property, prop_type, 0, length);
-    let reply = req.get_reply()?;
-    Ok(reply.value::<T>().to_vec())
 }
