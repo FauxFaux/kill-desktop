@@ -2,8 +2,11 @@ use std::fs;
 use std::io::Read;
 use std::path::PathBuf;
 
+use dirs;
+use toml;
 use failure::Error;
 use failure::ResultExt;
+use regex;
 use regex::Regex;
 
 #[derive(Clone, Debug, Deserialize)]
