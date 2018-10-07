@@ -10,7 +10,7 @@ pub struct XServer {
     atoms: ExtraAtoms,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct XWindow(pub xcb::Window);
 
 #[derive(Copy, Clone, Debug)]

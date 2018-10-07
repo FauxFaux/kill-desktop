@@ -11,17 +11,18 @@ extern crate xcb;
 
 use std::env;
 use std::io;
-use std::io::Write;
+use std::io::Read;
 use std::thread;
 
 mod config;
 mod x;
 
 use failure::Error;
+use termion::raw::IntoRawMode;
 
 use config::Config;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct Proc {
     window: x::XWindow,
     class: String,
@@ -38,11 +39,64 @@ fn main() -> Result<(), Error> {
 
     let config = config::config()?;
 
-    // TODO
-    let no_act = true;
-
     let mut conn = x::XServer::new()?;
 
+    let _stdout = io::stdout().into_raw_mode().unwrap();
+    let mut stdin = termion::async_stdin();
+
+    let mut last_procs = Vec::new();
+
+    'app: loop {
+        let procs = find_procs(&config, &mut conn)?;
+
+        if procs.is_empty() {
+            break;
+        }
+
+        if procs != last_procs {
+            println!();
+            println!("Waiting for: {}\r", compressed_list(&procs));
+            println!("Action? [d]elete, [t]erm, [k]ill, [q]uit)?\r");
+            last_procs = procs.clone();
+        }
+
+        let mut buf = [0u8; 32];
+        let found = stdin.read(&mut buf)?;
+        let buf = &buf[..found];
+        for cmd in buf {
+            const CTRL_C: u8 = b'C' - 0x40;
+            const CTRL_D: u8 = b'D' - 0x40;
+            const CTRL_Z: u8 = b'Z' - 0x40;
+            match *cmd {
+                b'd' => {
+                    for proc in &procs {
+                        conn.delete_window(proc.window)?;
+                    }
+                }
+                b't' => {
+                    for proc in &procs {
+                        let _ = kill(proc.pid, Some(nix::sys::signal::SIGTERM))?;
+                    }
+                }
+                b'k' => {
+                    for proc in &procs {
+                        let _ = kill(proc.pid, Some(nix::sys::signal::SIGKILL))?;
+                    }
+                }
+                b'q' | CTRL_C | CTRL_D | CTRL_Z => {
+                    break 'app;
+                }
+                other => println!("unsupported command: {:?}\r", other as char),
+            }
+        }
+
+        sleep_ms(50);
+    }
+
+    Ok(())
+}
+
+fn find_procs(config: &Config, conn: &mut x::XServer) -> Result<Vec<Proc>, Error> {
     let mut procs = Vec::with_capacity(16);
 
     conn.for_windows(|conn, window_id| {
@@ -54,37 +108,7 @@ fn main() -> Result<(), Error> {
 
     procs.sort_by_key(|proc| (proc.class.to_string(), proc.pid));
 
-    if !no_act {
-        for proc in &procs {
-            conn.delete_window(proc.window)?;
-        }
-    }
-
-    loop {
-        procs.retain(|proc| match alive(proc.pid) {
-            Ok(alive) => alive,
-            Err(e) => {
-                eprintln!("{:>6} {}: pid dislikes kill: {:?}", proc.pid, proc.class, e);
-                true
-            }
-        });
-
-        if procs.is_empty() {
-            break;
-        }
-
-        draw_procs(&procs);
-        println!("; ([t]erm, [k]ill, [q]uit)?");
-//        let _ = io::stdout().flush();
-
-        sleep_ms(50);
-    }
-
-    Ok(())
-}
-
-fn draw_procs(procs: &[Proc]) {
-    print!("{}Waiting: {}", termion::clear::BeforeCursor, compressed_list(procs));
+    Ok(procs)
 }
 
 fn compressed_list(procs: &[Proc]) -> String {
@@ -134,7 +158,7 @@ fn gather_window_details(
         }
     };
 
-    match alive(pid) {
+    match kill(pid, None) {
         Ok(true) => (),
         Ok(false) => {
             eprintln!("{:?} (pid {}), wasn't even alive to start with", class, pid);
@@ -151,13 +175,13 @@ fn gather_window_details(
     }))
 }
 
-fn alive(pid: u32) -> Result<bool, Error> {
+fn kill(pid: u32, signal: Option<nix::sys::signal::Signal>) -> Result<bool, Error> {
     use nix::errno::Errno;
     use nix::sys::signal;
     use nix::unistd::Pid;
     assert!(pid <= ::std::i32::MAX as u32);
 
-    Ok(match signal::kill(Pid::from_raw(pid as i32), None) {
+    Ok(match signal::kill(Pid::from_raw(pid as i32), signal) {
         Ok(()) => true,
         Err(nix::Error::Sys(Errno::ESRCH)) => false,
         other => bail!("kill {} failed: {:?}", pid, other),
