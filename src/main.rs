@@ -71,16 +71,19 @@ fn main() -> Result<(), Error> {
             const CTRL_Z: u8 = b'Z' - 0x40;
             match *cmd {
                 b'd' => {
+                    println!("Asking everyone to quit.\r");
                     for proc in &procs {
                         conn.delete_window(proc.window)?;
                     }
                 }
                 b't' => {
+                    println!("Telling everyone to quit.\r");
                     for proc in &procs {
                         let _ = kill(proc.pid, Some(nix::sys::signal::SIGTERM))?;
                     }
                 }
                 b'k' => {
+                    println!("Quitting everyone.\r");
                     for proc in &procs {
                         let _ = kill(proc.pid, Some(nix::sys::signal::SIGKILL))?;
                     }

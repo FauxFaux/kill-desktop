@@ -1,5 +1,6 @@
 ignore = [
     "term",
+    "simplescreenrecorder",
 ]
 ignores_delete = [
     "slack",
