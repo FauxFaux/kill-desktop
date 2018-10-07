@@ -11,7 +11,7 @@ pub struct XServer {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct XWindow(xcb::Window);
+pub struct XWindow(pub xcb::Window);
 
 #[derive(Copy, Clone, Debug)]
 struct ExtraAtoms {

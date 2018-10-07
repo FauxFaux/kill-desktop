@@ -3,11 +3,11 @@ use std::io::Read;
 use std::path::PathBuf;
 
 use dirs;
-use toml;
 use failure::Error;
 use failure::ResultExt;
 use regex;
 use regex::Regex;
+use toml;
 
 #[derive(Clone, Debug, Deserialize)]
 struct RawConfig {

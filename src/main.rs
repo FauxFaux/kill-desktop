@@ -5,10 +5,13 @@ extern crate serde_derive;
 extern crate failure;
 extern crate nix;
 extern crate regex;
+extern crate termion;
 extern crate toml;
 extern crate xcb;
 
 use std::env;
+use std::io;
+use std::io::Write;
 use std::thread;
 
 mod config;
@@ -70,16 +73,40 @@ fn main() -> Result<(), Error> {
             break;
         }
 
-        println!();
-        println!("Still waiting for...");
-        for proc in &procs {
-            println!("{:>6} {}", proc.pid, proc.class)
-        }
+        draw_procs(&procs);
+        println!("; ([t]erm, [k]ill, [q]uit)?");
+//        let _ = io::stdout().flush();
 
-        sleep_ms(1_000);
+        sleep_ms(50);
     }
 
     Ok(())
+}
+
+fn draw_procs(procs: &[Proc]) {
+    print!("{}Waiting: {}", termion::clear::BeforeCursor, compressed_list(procs));
+}
+
+fn compressed_list(procs: &[Proc]) -> String {
+    let mut buf = String::with_capacity(procs.len() * 32);
+    let mut last = procs[0].class.to_string();
+    buf.push_str(&last);
+    buf.push_str(" (");
+    for proc in procs {
+        if proc.class != last && !buf.is_empty() {
+            buf.pop(); // comma space
+            buf.pop(); // comma space
+            buf.push_str("), ");
+            buf.push_str(&proc.class);
+            buf.push_str(" (");
+            last = proc.class.to_string();
+        }
+        buf.push_str(&format!("{}, ", proc.pid));
+    }
+    buf.pop(); // comma space
+    buf.pop(); // comma space
+    buf.push(')');
+    buf
 }
 
 fn gather_window_details(
@@ -139,4 +166,28 @@ fn alive(pid: u32) -> Result<bool, Error> {
 
 fn sleep_ms(ms: u64) {
     thread::sleep(::std::time::Duration::from_millis(ms))
+}
+
+#[cfg(test)]
+mod tests {
+    fn proc(class: &str, pid: u32) -> ::Proc {
+        ::Proc {
+            class: class.to_string(),
+            pid,
+            supported_protocols: Vec::new(),
+            window: ::x::XWindow(0),
+        }
+    }
+
+    #[test]
+    fn test_compressed_list() {
+        assert_eq!(
+            "aba (12), bar (34)",
+            ::compressed_list(&[proc("aba", 12), proc("bar", 34)])
+        );
+        assert_eq!(
+            "aba (12, 23), bar (34)",
+            ::compressed_list(&[proc("aba", 12), proc("aba", 23), proc("bar", 34)])
+        );
+    }
 }
