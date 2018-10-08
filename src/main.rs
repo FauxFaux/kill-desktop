@@ -9,6 +9,8 @@ extern crate toml;
 extern crate xcb;
 
 use std::env;
+use std::io;
+use std::io::Write;
 use std::sync::mpsc;
 use std::time::Duration;
 
@@ -26,7 +28,7 @@ use config::Config;
 struct Proc {
     window: x::XWindow,
     class: String,
-    pid: u32,
+    pid: Option<u32>,
     supported_protocols: Vec<xcb::Atom>,
 }
 
@@ -58,7 +60,8 @@ fn main() -> Result<(), Error> {
         if procs != last_procs {
             println!();
             println!("Waiting for: {}", compressed_list(&procs));
-            println!("Action? [d]elete, [t]erm, [k]ill, [q]uit)? ");
+            print!("Action? [d]elete, [t]erm, [k]ill, [q]uit)? ");
+            io::stdout().flush()?;
             last_procs = procs.clone();
         }
 
@@ -72,13 +75,17 @@ fn main() -> Result<(), Error> {
             Ok(b't') => {
                 println!("Telling everyone to quit.");
                 for proc in &procs {
-                    let _ = kill(proc.pid, Some(nix::sys::signal::SIGTERM))?;
+                    if let Some(pid) = proc.pid {
+                        let _ = kill(pid, Some(nix::sys::signal::SIGTERM))?;
+                    }
                 }
             }
             Ok(b'k') => {
                 println!("Quitting everyone.");
                 for proc in &procs {
-                    let _ = kill(proc.pid, Some(nix::sys::signal::SIGKILL))?;
+                    if let Some(pid) = proc.pid {
+                        let _ = kill(pid, Some(nix::sys::signal::SIGKILL))?;
+                    }
                 }
             }
             Ok(b'q') => {
@@ -131,7 +138,11 @@ fn compressed_list(procs: &[Proc]) -> String {
             buf.push_str(" (");
             last = proc.class.to_string();
         }
-        buf.push_str(&format!("{}, ", proc.pid));
+        if let Some(pid) = proc.pid {
+            buf.push_str(&format!("{}, ", pid));
+        } else {
+            buf.push_str("?, ");
+        }
     }
     buf.pop(); // comma space
     buf.pop(); // comma space
@@ -159,31 +170,28 @@ fn gather_window_details(
         .with_context(|_| format_err!("finding pid of {:?} ({:?})", class, window))?;
 
     let pid = match pids.len() {
-        1 => pids[0],
-        _ => {
-            eprintln!(
-                "a window, {:?} ({:?}), has the wrong number of pids: {:?}",
-                class, window, pids
-            );
-            return Ok(None);
-        }
-    };
+        1 => {
+            let pid = pids[0];
+            match kill(pid, None) {
+                Ok(true) => (),
+                Ok(false) => {
+                    eprintln!("{:?} (pid {}), wasn't even alive to start with", class, pid);
+                    return Ok(None);
+                }
+                Err(other) => eprintln!("{:?} (pid {}): kill test failed: {:?}", class, pid, other),
+            }
 
-    match kill(pid, None) {
-        Ok(true) => (),
-        Ok(false) => {
-            eprintln!("{:?} (pid {}), wasn't even alive to start with", class, pid);
-            return Ok(None);
+            Some(pid)
         }
-        Err(other) => eprintln!("{:?} (pid {}): kill test failed: {:?}", class, pid, other),
-    }
+        _ => None,
+    };
 
     Ok(Some(Proc {
         window,
         pid,
         supported_protocols: conn
             .supported_protocols(window)
-            .with_context(|_| format_err!("finding protocols of {:?} (pid {})", class, pid))?,
+            .with_context(|_| format_err!("finding protocols of {:?} (pid {:?})", class, pid))?,
         class,
     }))
 }
@@ -206,7 +214,7 @@ mod tests {
     fn proc(class: &str, pid: u32) -> ::Proc {
         ::Proc {
             class: class.to_string(),
-            pid,
+            pid: Some(pid),
             supported_protocols: Vec::new(),
             window: ::x::XWindow(0),
         }
