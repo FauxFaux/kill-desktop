@@ -37,7 +37,7 @@ struct WindowInfo {
 
 #[derive(Clone, Debug)]
 struct PidInfo {
-    windows: Vec<XWindow>,
+    window: Vec<WindowInfo>,
     exe: String,
 }
 
@@ -62,39 +62,89 @@ fn main() -> Result<(), Error> {
         term::StdOutTermios::with_setup(|attr| attr.local_flags ^= termios::LocalFlags::ICANON)?;
     let stdin = term::async_stdin();
 
-    //    let mut seen_windows = HashMap::new();
-    //    let mut seen_pids = HashMap::new();
-    let mut last_procs = Vec::new();
+    let mut seen_windows: HashMap<XWindow, WindowInfo> = HashMap::new();
+    let mut seen_pids = HashMap::new();
+    let mut hatred = Hatred::default();
 
     'app: loop {
-        let procs = find_procs(&config, &mut conn)?;
+        let mut now_windows = find_windows(&config, &mut conn, &mut hatred)?;
 
-        if procs.is_empty() {
-            println!("No applications found, exiting.\r");
+        let mut died_this_time = Vec::new();
+
+        let mut meaningful_change = false;
+
+        // windows we already knew about
+        for (window, old_info) in &mut seen_windows {
+            match now_windows.remove(&window) {
+                Some(new_info) => {
+                    // the window was here and is still here, update it:
+                    old_info.class = new_info.class;
+                    if old_info.title != new_info.title {
+                        meaningful_change = true;
+                        old_info.title = new_info.title;
+                    }
+                    old_info.supports_delete = new_info.supports_delete;
+                    old_info.pids.extend(new_info.pids);
+                }
+                None => {
+                    died_this_time.push((*window, old_info.clone()));
+                    meaningful_change = true;
+                }
+            }
+        }
+
+        // windows that have gone, but aren't forgotten
+        for (window, old_info) in died_this_time {
+            for &pid in &old_info.pids {
+                // TODO: totally ignoring errors here?
+                if let Ok(true) = kill(pid, None) {
+                    seen_pids.insert(pid, old_info.clone());
+                }
+            }
+
+            seen_windows.remove(&window);
+        }
+
+        // windows that are actually new
+        for (window, new_info) in now_windows {
+            seen_windows.insert(window, new_info);
+            meaningful_change = true;
+        }
+
+        if seen_windows.is_empty() && seen_pids.is_empty() {
+            println!("No applications found, exiting.");
             break;
         }
 
-        if procs != last_procs {
+        // TODO
+        if meaningful_change {
             println!();
             println!(
                 "Waiting for: {}",
-                compressed_list(&procs.iter().map(|(_, v)| v.clone()).collect::<Vec<_>>())
+                compressed_list(
+                    &seen_windows
+                        .iter()
+                        .map(|(_, v)| v.clone())
+                        .collect::<Vec<_>>()
+                )
             );
+            if !seen_pids.is_empty() {
+                println!("Plus, some rogue processes: {:?}", seen_pids.keys());
+            }
             print!("Action? [d]elete, [t]erm, [k]ill, [q]uit)? ");
             io::stdout().flush()?;
-            last_procs = procs.clone();
         }
 
         match stdin.recv_timeout(Duration::from_millis(50)) {
             Ok(b'd') => {
                 println!("Asking everyone to quit.");
-                for (window, _info) in &procs {
+                for (window, _info) in &seen_windows {
                     conn.delete_window(window)?;
                 }
             }
             Ok(b't') => {
                 println!("Telling everyone to quit.");
-                for (_window, info) in &procs {
+                for (_window, info) in &seen_windows {
                     for pid in &info.pids {
                         let _ = kill(*pid, Some(nix::sys::signal::SIGTERM))?;
                     }
@@ -102,7 +152,7 @@ fn main() -> Result<(), Error> {
             }
             Ok(b'k') => {
                 println!("Quitting everyone.");
-                for (_window, info) in &procs {
+                for (_window, info) in &seen_windows {
                     for pid in &info.pids {
                         let _ = kill(*pid, Some(nix::sys::signal::SIGKILL))?;
                     }
@@ -124,20 +174,24 @@ fn main() -> Result<(), Error> {
     Ok(())
 }
 
-fn find_procs(config: &Config, conn: &mut x::XServer) -> Result<Vec<(XWindow, WindowInfo)>, Error> {
-    let mut procs = Vec::with_capacity(16);
+fn find_windows(
+    config: &Config,
+    conn: &mut x::XServer,
+    hatred: &mut Hatred,
+) -> Result<HashMap<XWindow, WindowInfo>, Error> {
+    let mut windows = HashMap::with_capacity(16);
 
     conn.for_windows(|conn, window_id| {
-        if let Some(proc) = gather_window_details(&config, conn, window_id, &mut Hatred::default())
-        {
-            procs.push((window_id, proc));
+        if hatred.blacklisted_windows.contains_key(&window_id) {
+            return;
         }
-        Ok(())
+
+        if let Some(proc) = gather_window_details(&config, conn, window_id, hatred) {
+            windows.insert(window_id, proc);
+        }
     })?;
 
-    procs.sort_by_key(|(_window, info)| info.class.to_string());
-
-    Ok(procs)
+    Ok(windows)
 }
 
 fn compressed_list(procs: &[WindowInfo]) -> String {

@@ -42,7 +42,7 @@ impl XServer {
 
     pub fn for_windows<F>(&self, mut func: F) -> Result<(), Error>
     where
-        F: FnMut(&XServer, XWindow) -> Result<(), Error>,
+        F: FnMut(&XServer, XWindow),
     {
         for screen in self.conn.get_setup().roots() {
             for window_id in self.get_property::<xcb::Window>(
@@ -51,7 +51,7 @@ impl XServer {
                 xp::ATOM_WINDOW,
                 4_096,
             )? {
-                func(self, XWindow(window_id))?;
+                func(self, XWindow(window_id));
             }
         }
         Ok(())
