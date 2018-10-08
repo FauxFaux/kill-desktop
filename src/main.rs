@@ -5,6 +5,7 @@ extern crate serde_derive;
 extern crate failure;
 extern crate nix;
 extern crate regex;
+extern crate terminal_size;
 extern crate toml;
 extern crate xcb;
 
@@ -124,20 +125,38 @@ fn main() -> Result<(), Error> {
         if meaningful_change {
             println!(); // end of the prompt
             println!();
-            println!(
-                "Windows: {}",
-                compressed_list(
-                    &seen_windows
-                        .iter()
-                        .map(|(_, v)| v.clone())
-                        .collect::<Vec<_>>()
-                )
-            );
+            let width_budget = terminal_size::terminal_size().map(|(w, _h)| w.0).unwrap_or(80) as usize;
+
+            let mut windows = seen_windows.values().collect::<Vec<_>>();
+            windows.sort_by_key(|info| (info.class.to_string(), info.title.to_string()));
+            for info in windows {
+                let mut pids = info.pids.iter().cloned().collect::<Vec<_>>();
+                pids.sort();
+                let pids = pids.into_iter().map(|num| format!("{}", num)).collect::<Vec<_>>().join(", ");
+                let used = 3 + info.class.len() + 3 + 2 + pids.len() + 1;
+
+                let title =
+                if used < width_budget {
+                    // TODO: ooh, this can break utf-8
+                    &info.title[..info.title.len().min(width_budget - used)]
+                } else {
+                    &info.title
+                };
+
+                let status = if info.pids.is_empty() {
+                    "📪"
+                } else {
+                    "📫"
+                };
+
+                println!("{} {} - {} ({})", status, info.class, title, pids)
+            }
+
             if !seen_pids.is_empty() {
                 println!("  Procs: {:?}", seen_pids.keys());
             }
-            print!("Action?  [d]elete, [t]erm, [k]ill, [q]uit)? ");
-            io::stdout().flush()?;
+
+            action_prompt()?;
         }
 
         match stdin.recv_timeout(Duration::from_millis(50)) {
@@ -171,7 +190,11 @@ fn main() -> Result<(), Error> {
                 println!("User asked, exiting.");
                 break 'app;
             }
-            Ok(other) => println!("unsupported command: {:?}", other as char),
+            Ok(other) => {
+                println!();
+                println!("unsupported command: {:?}", other as char);
+                action_prompt()?;
+            },
             Err(mpsc::RecvTimeoutError::Timeout) => (),
             Err(mpsc::RecvTimeoutError::Disconnected) => {
                 println!();
@@ -181,6 +204,12 @@ fn main() -> Result<(), Error> {
         }
     }
 
+    Ok(())
+}
+
+fn action_prompt() -> Result<(), Error> {
+    print!("Action?  [d]elete, [t]erm, [k]ill, [q]uit)? ");
+    io::stdout().flush()?;
     Ok(())
 }
 
@@ -202,35 +231,6 @@ fn find_windows(
     })?;
 
     Ok(windows)
-}
-
-fn compressed_list(procs: &[WindowInfo]) -> String {
-    let mut buf = String::with_capacity(procs.len() * 32);
-    let mut last = procs[0].class.to_string();
-    buf.push_str(&last);
-    buf.push_str(" (");
-    for proc in procs {
-        if proc.class != last && !buf.is_empty() {
-            buf.pop(); // comma space
-            buf.pop(); // comma space
-            buf.push_str("), ");
-            buf.push_str(&proc.class);
-            buf.push_str(" (");
-            last = proc.class.to_string();
-        }
-        match proc.pids.len() {
-            0 => buf.push_str("?, "),
-            _ => {
-                for pid in &proc.pids {
-                    buf.push_str(&format!("{}, ", pid));
-                }
-            }
-        }
-    }
-    buf.pop(); // comma space
-    buf.pop(); // comma space
-    buf.push(')');
-    buf
 }
 
 fn gather_window_details(
@@ -287,6 +287,14 @@ fn gather_window_details(
         }
     });
 
+    let title = match conn.read_title(window) {
+        Ok(val) => val,
+        Err(_) => {
+            // TODO: don't totally ignore
+            String::new()
+        }
+    };
+
     let supports_delete = match conn.supports_delete(window) {
         Ok(val) => val,
         Err(_) => {
@@ -299,7 +307,7 @@ fn gather_window_details(
         pids,
         class,
         supports_delete,
-        title: String::new(), // TODO
+        title,
     })
 }
 
@@ -314,32 +322,4 @@ fn kill(pid: u32, signal: Option<nix::sys::signal::Signal>) -> Result<bool, Erro
         Err(nix::Error::Sys(Errno::ESRCH)) => false,
         other => bail!("kill {} failed: {:?}", pid, other),
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use std::collections::HashSet;
-
-    fn proc(class: &str, pid: u32) -> ::WindowInfo {
-        let mut pids = HashSet::new();
-        pids.insert(pid);
-        ::WindowInfo {
-            class: class.to_string(),
-            pids,
-            supports_delete: true,
-            title: String::new(),
-        }
-    }
-
-    #[test]
-    fn test_compressed_list() {
-        assert_eq!(
-            "aba (12), bar (34)",
-            ::compressed_list(&[proc("aba", 12), proc("bar", 34)])
-        );
-        assert_eq!(
-            "aba (12, 23), bar (34)",
-            ::compressed_list(&[proc("aba", 12), proc("aba", 23), proc("bar", 34)])
-        );
-    }
 }

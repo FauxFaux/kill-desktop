@@ -17,8 +17,10 @@ pub struct XWindow(pub xcb::Window);
 struct ExtraAtoms {
     net_client_list: xcb::Atom,
     net_wm_pid: xcb::Atom,
+    net_wm_name: xcb::Atom,
     wm_protocols: xcb::Atom,
     wm_delete_window: xcb::Atom,
+    utf8: xcb::Atom,
 }
 
 impl XServer {
@@ -33,8 +35,10 @@ impl XServer {
         let atoms = ExtraAtoms {
             net_client_list: existing_atom(&conn, "_NET_CLIENT_LIST")?,
             net_wm_pid: existing_atom(&conn, "_NET_WM_PID")?,
+            net_wm_name: existing_atom(&conn, "_NET_WM_NAME")?,
             wm_protocols: existing_atom(&conn, "WM_PROTOCOLS")?,
             wm_delete_window: existing_atom(&conn, "WM_DELETE_WINDOW")?,
+            utf8: existing_atom(&conn, "UTF8_STRING")?,
         };
 
         Ok(XServer { conn, atoms })
@@ -58,12 +62,20 @@ impl XServer {
     }
 
     pub fn read_class(&self, window_id: XWindow) -> Result<String, Error> {
-        let class = self.get_property::<u8>(window_id, xp::ATOM_WM_CLASS, xp::ATOM_STRING, 1024)?;
-        let class = match class.iter().position(|b| 0 == *b) {
-            Some(pos) => &class[..pos],
-            None => &class[..],
+        self.read_string(window_id, xp::ATOM_WM_CLASS, xp::ATOM_STRING)
+    }
+
+    pub fn read_title(&self, window_id: XWindow) -> Result<String, Error> {
+        self.read_string(window_id, self.atoms.net_wm_name, self.atoms.utf8)
+    }
+
+    fn read_string(&self, window_id: XWindow, atom: xcb::Atom, prop_type: xcb::Atom) -> Result<String, Error> {
+        let string = self.get_property::<u8>(window_id, atom, prop_type, 1024)?;
+        let string = match string.iter().position(|b| 0 == *b) {
+            Some(pos) => &string[..pos],
+            None => &string[..],
         };
-        Ok(String::from_utf8_lossy(class).to_string())
+        Ok(String::from_utf8_lossy(string).to_string())
     }
 
     pub fn delete_window(&mut self, window: &XWindow) -> Result<(), Error> {
