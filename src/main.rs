@@ -22,6 +22,7 @@ mod term;
 mod x;
 
 use failure::Error;
+use nix::sys::signal;
 use nix::sys::termios;
 
 use config::Config;
@@ -110,11 +111,13 @@ fn main() -> Result<(), Error> {
         }
 
         // TODO: ignoring errors here
-        seen_pids.retain(|&pid, _| if kill(pid, None).unwrap_or(false) {
-            true
-        } else {
-            meaningful_change = true;
-            false
+        seen_pids.retain(|&pid, _| {
+            if kill(pid, None).unwrap_or(false) {
+                true
+            } else {
+                meaningful_change = true;
+                false
+            }
         });
 
         if seen_windows.is_empty() && seen_pids.is_empty() {
@@ -125,35 +128,34 @@ fn main() -> Result<(), Error> {
         if meaningful_change {
             println!(); // end of the prompt
             println!();
-            let width_budget = terminal_size::terminal_size().map(|(w, _h)| w.0).unwrap_or(80) as usize;
+            let width_budget = terminal_size::terminal_size()
+                .map(|(w, _h)| w.0)
+                .unwrap_or(80) as usize;
 
-            let mut windows = seen_windows.values().collect::<Vec<_>>();
-            windows.sort_by_key(|info| (info.class.to_string(), info.title.to_string()));
-            for info in windows {
-                let mut pids = info.pids.iter().cloned().collect::<Vec<_>>();
-                pids.sort();
-                let pids = pids.into_iter().map(|num| format!("{}", num)).collect::<Vec<_>>().join(", ");
-                let used = 3 + info.class.len() + 3 + 2 + pids.len() + 1;
+            let mut windows = seen_windows
+                .values()
+                .cloned()
+                .map(|info| (if info.pids.is_empty() { '📪' } else { '📫' }, info))
+                .collect::<Vec<_>>();
 
-                let title =
-                if used < width_budget {
+            windows.extend(seen_pids.values().cloned().map(|info| ('📭', info)));
+
+            windows.sort_by_key(|(_status, info)| (info.class.to_string(), info.title.to_string()));
+            for (status, info) in windows {
+                let used = 3 + info.class.len() + 3;
+
+                let title = if used < width_budget {
                     // TODO: ooh, this can break utf-8
                     &info.title[..info.title.len().min(width_budget - used)]
                 } else {
                     &info.title
                 };
 
-                let status = if info.pids.is_empty() {
-                    "📪"
+                if title.is_empty() {
+                    println!("{} {}", status, info.class)
                 } else {
-                    "📫"
-                };
-
-                println!("{} {} - {} ({})", status, info.class, title, pids)
-            }
-
-            if !seen_pids.is_empty() {
-                println!("  Procs: {:?}", seen_pids.keys());
+                    println!("{} {} - {}", status, info.class, title)
+                }
             }
 
             action_prompt()?;
@@ -170,20 +172,12 @@ fn main() -> Result<(), Error> {
             Ok(b't') => {
                 println!();
                 println!("Telling everyone to quit.");
-                for (_window, info) in &seen_windows {
-                    for pid in &info.pids {
-                        let _ = kill(*pid, Some(nix::sys::signal::SIGTERM))?;
-                    }
-                }
+                kill_all(&mut seen_windows, &mut seen_pids, signal::SIGTERM)?;
             }
             Ok(b'k') => {
                 println!();
                 println!("Quitting everyone.");
-                for (_window, info) in &seen_windows {
-                    for pid in &info.pids {
-                        let _ = kill(*pid, Some(nix::sys::signal::SIGKILL))?;
-                    }
-                }
+                kill_all(&mut seen_windows, &mut seen_pids, signal::SIGKILL)?;
             }
             Ok(b'q') => {
                 println!();
@@ -194,7 +188,7 @@ fn main() -> Result<(), Error> {
                 println!();
                 println!("unsupported command: {:?}", other as char);
                 action_prompt()?;
-            },
+            }
             Err(mpsc::RecvTimeoutError::Timeout) => (),
             Err(mpsc::RecvTimeoutError::Disconnected) => {
                 println!();
@@ -205,6 +199,26 @@ fn main() -> Result<(), Error> {
     }
 
     Ok(())
+}
+
+fn kill_all(
+    seen_windows: &mut HashMap<XWindow, WindowInfo>,
+    seen_pids: &mut HashMap<u32, WindowInfo>,
+    sig: signal::Signal,
+) -> Result<bool, Error> {
+    let mut did_anything = false;
+    for (_window, info) in seen_windows {
+        for pid in &info.pids {
+            did_anything |= kill(*pid, Some(sig))?;
+        }
+    }
+    for pid in seen_pids.keys() {
+        did_anything |= kill(*pid, Some(sig))?;
+    }
+
+    action_prompt()?;
+
+    Ok(did_anything)
 }
 
 fn action_prompt() -> Result<(), Error> {

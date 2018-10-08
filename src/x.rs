@@ -69,7 +69,12 @@ impl XServer {
         self.read_string(window_id, self.atoms.net_wm_name, self.atoms.utf8)
     }
 
-    fn read_string(&self, window_id: XWindow, atom: xcb::Atom, prop_type: xcb::Atom) -> Result<String, Error> {
+    fn read_string(
+        &self,
+        window_id: XWindow,
+        atom: xcb::Atom,
+        prop_type: xcb::Atom,
+    ) -> Result<String, Error> {
         let string = self.get_property::<u8>(window_id, atom, prop_type, 1024)?;
         let string = match string.iter().position(|b| 0 == *b) {
             Some(pos) => &string[..pos],
