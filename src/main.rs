@@ -96,10 +96,7 @@ fn main() -> Result<(), Error> {
         // windows that have gone, but aren't forgotten
         for (window, old_info) in died_this_time {
             for &pid in &old_info.pids {
-                // TODO: totally ignoring errors here?
-                if let Ok(true) = kill(pid, None) {
-                    seen_pids.insert(pid, old_info.clone());
-                }
+                seen_pids.insert(pid, old_info.clone());
             }
 
             seen_windows.remove(&window);
@@ -111,16 +108,24 @@ fn main() -> Result<(), Error> {
             meaningful_change = true;
         }
 
+        // TODO: ignoring errors here
+        seen_pids.retain(|&pid, _| if kill(pid, None).unwrap_or(false) {
+            true
+        } else {
+            meaningful_change = true;
+            false
+        });
+
         if seen_windows.is_empty() && seen_pids.is_empty() {
             println!("No applications found, exiting.");
             break;
         }
 
-        // TODO
         if meaningful_change {
+            println!(); // end of the prompt
             println!();
             println!(
-                "Waiting for: {}",
+                "Windows: {}",
                 compressed_list(
                     &seen_windows
                         .iter()
@@ -129,20 +134,22 @@ fn main() -> Result<(), Error> {
                 )
             );
             if !seen_pids.is_empty() {
-                println!("Plus, some rogue processes: {:?}", seen_pids.keys());
+                println!("  Procs: {:?}", seen_pids.keys());
             }
-            print!("Action? [d]elete, [t]erm, [k]ill, [q]uit)? ");
+            print!("Action?  [d]elete, [t]erm, [k]ill, [q]uit)? ");
             io::stdout().flush()?;
         }
 
         match stdin.recv_timeout(Duration::from_millis(50)) {
             Ok(b'd') => {
+                println!();
                 println!("Asking everyone to quit.");
                 for (window, _info) in &seen_windows {
                     conn.delete_window(window)?;
                 }
             }
             Ok(b't') => {
+                println!();
                 println!("Telling everyone to quit.");
                 for (_window, info) in &seen_windows {
                     for pid in &info.pids {
@@ -151,6 +158,7 @@ fn main() -> Result<(), Error> {
                 }
             }
             Ok(b'k') => {
+                println!();
                 println!("Quitting everyone.");
                 for (_window, info) in &seen_windows {
                     for pid in &info.pids {
@@ -159,12 +167,14 @@ fn main() -> Result<(), Error> {
                 }
             }
             Ok(b'q') => {
-                println!("User asked, exiting");
+                println!();
+                println!("User asked, exiting.");
                 break 'app;
             }
             Ok(other) => println!("unsupported command: {:?}", other as char),
             Err(mpsc::RecvTimeoutError::Timeout) => (),
             Err(mpsc::RecvTimeoutError::Disconnected) => {
+                println!();
                 println!("End of commands, exiting");
                 break 'app;
             }
