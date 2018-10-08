@@ -10,7 +10,7 @@ pub struct XServer {
     atoms: ExtraAtoms,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
 pub struct XWindow(pub xcb::Window);
 
 #[derive(Copy, Clone, Debug)]
@@ -66,7 +66,7 @@ impl XServer {
         Ok(String::from_utf8_lossy(class).to_string())
     }
 
-    pub fn delete_window(&mut self, window: XWindow) -> Result<(), Error> {
+    pub fn delete_window(&mut self, window: &XWindow) -> Result<(), Error> {
         let event = xcb::xproto::ClientMessageEvent::new(
             32,
             window.0,
@@ -91,11 +91,13 @@ impl XServer {
     }
 
     pub fn pids(&self, window: XWindow) -> Result<Vec<u32>, Error> {
-        Ok(self.get_property::<u32>(window, self.atoms.net_wm_pid, xp::ATOM_CARDINAL, 2)?)
+        Ok(self.get_property::<u32>(window, self.atoms.net_wm_pid, xp::ATOM_CARDINAL, 64)?)
     }
 
-    pub fn supported_protocols(&self, window: XWindow) -> Result<Vec<xcb::Atom>, Error> {
-        Ok(self.get_property::<u32>(window, self.atoms.wm_protocols, xp::ATOM_ATOM, 1_024)?)
+    pub fn supports_delete(&self, window: XWindow) -> Result<bool, Error> {
+        let supported =
+            self.get_property::<u32>(window, self.atoms.wm_protocols, xp::ATOM_ATOM, 1_024)?;
+        Ok(supported.contains(&self.atoms.wm_delete_window))
     }
 
     fn get_property<T: Clone>(
