@@ -128,13 +128,9 @@ fn find_procs(config: &Config, conn: &mut x::XServer) -> Result<Vec<(XWindow, Wi
     let mut procs = Vec::with_capacity(16);
 
     conn.for_windows(|conn, window_id| {
-        match gather_window_details(&config, conn, window_id, &mut Hatred::default()) {
-            Ok(Some(proc)) => procs.push((window_id, proc)),
-            Ok(None) => (),
-            Err(e) => eprintln!(
-                "couldn't get details (window vanished?): {:?} {:?}",
-                window_id, e
-            ),
+        if let Some(proc) = gather_window_details(&config, conn, window_id, &mut Hatred::default())
+        {
+            procs.push((window_id, proc));
         }
         Ok(())
     })?;
@@ -178,20 +174,20 @@ fn gather_window_details(
     conn: &x::XServer,
     window: x::XWindow,
     hatred: &mut Hatred,
-) -> Result<Option<WindowInfo>, Error> {
+) -> Option<WindowInfo> {
     let class = match conn.read_class(window) {
         Ok(class) => class,
         Err(e) => {
             hatred
                 .blacklisted_windows
                 .insert(window, format!("read class failed: {:?}", e));
-            return Ok(None);
+            return None;
         }
     };
 
     for ignore in &config.ignore {
         if ignore.is_match(&class) {
-            return Ok(None);
+            return None;
         }
     }
 
@@ -235,12 +231,12 @@ fn gather_window_details(
         }
     };
 
-    Ok(Some(WindowInfo {
+    Some(WindowInfo {
         pids,
         class,
         supports_delete,
         title: String::new(), // TODO
-    }))
+    })
 }
 
 fn kill(pid: u32, signal: Option<nix::sys::signal::Signal>) -> Result<bool, Error> {
