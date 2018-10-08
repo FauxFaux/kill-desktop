@@ -25,7 +25,7 @@ Here, we can see a load of applications running. This view is updated
 You are asked for an action. Let's ask everyone to shut down nicely:
 
 ```
-Action?  [d]elete, [t]erm, [k]ill, [q]uit)? d
+Action?  [d]elete, [t]erm, [k]ill, [q]uit? d
 Asking everyone to quit.
 ```
 
@@ -36,7 +36,7 @@ The apps start shutting down:
 📭 slack - Slack
 📭 spotify - XYconstant - Do It Well (feat. Tom Aspaul)
 📫 sun-awt-X11-XFramePeer - kill-desktop [~/code/kill-desktop] - .../src/main.rs [kill-desktop] - IntelliJ
-Action?  [d]elete, [t]erm, [k]ill, [q]uit)?
+Action?  [d]elete, [t]erm, [k]ill, [q]uit?
 ```
 
 `gedit` has gone, `slack` and `Spotify` are thinking about it.
@@ -46,7 +46,7 @@ Action?  [d]elete, [t]erm, [k]ill, [q]uit)?
 📭 slack - Slack
 📭 spotify - XYconstant - Do It Well (feat. Tom Aspaul)
 📫 sun-awt-X11-XFramePeer - kill-desktop [~/code/kill-desktop] - .../src/main.rs [kill-desktop] - IntelliJ
-Action?  [d]elete, [t]erm, [k]ill, [q]uit)?
+Action?  [d]elete, [t]erm, [k]ill, [q]uit?
 ```
 
 `google-chrome` has woken up and is thinking about it.
@@ -56,7 +56,7 @@ Action?  [d]elete, [t]erm, [k]ill, [q]uit)?
 📭 slack - Slack
 📭 spotify - XYconstant - Do It Well (feat. Tom Aspaul)
 📫 sun-awt-X11-XFramePeer - IntelliJ IDEA
-Action?  [d]elete, [t]erm, [k]ill, [q]uit)?
+Action?  [d]elete, [t]erm, [k]ill, [q]uit?
 ```
 
 They're going down!
@@ -65,14 +65,14 @@ They're going down!
 📭 slack - Slack
 📭 spotify - XYconstant - Do It Well (feat. Tom Aspaul)
 📫 sun-awt-X11-XFramePeer - IntelliJ IDEA
-Action?  [d]elete, [t]erm, [k]ill, [q]uit)?
+Action?  [d]elete, [t]erm, [k]ill, [q]uit?
 ```
 
 ```
 📭 slack - Slack
 📭 spotify - XYconstant - Do It Well (feat. Tom Aspaul)
 📭 sun-awt-X11-XFramePeer - IntelliJ IDEA
-Action?  [d]elete, [t]erm, [k]ill, [q]uit)?
+Action?  [d]elete, [t]erm, [k]ill, [q]uit?
 ```
 
 ... so slowly ...
@@ -80,7 +80,7 @@ Action?  [d]elete, [t]erm, [k]ill, [q]uit)?
 ```
 📭 slack - Slack
 📭 spotify - XYconstant - Do It Well (feat. Tom Aspaul)
-Action?  [d]elete, [t]erm, [k]ill, [q]uit)?
+Action?  [d]elete, [t]erm, [k]ill, [q]uit?
 ```
 
 ```
@@ -91,7 +91,7 @@ Aha, just slack is left, and it's closed its window. It hasn't exited,
 though. That would be what we want. Let's *tell* it to quit.
 
 ```
-Action?  [d]elete, [t]erm, [k]ill, [q]uit)? t
+Action?  [d]elete, [t]erm, [k]ill, [q]uit? t
 Telling everyone to quit.
 ```
 

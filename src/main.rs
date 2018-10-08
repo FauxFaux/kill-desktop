@@ -223,7 +223,7 @@ fn kill_all(
 }
 
 fn action_prompt() -> Result<(), Error> {
-    print!("Action?  [d]elete, [t]erm, [k]ill, [q]uit)? ");
+    print!("Action?  [d]elete, [t]erm, [k]ill, [q]uit? ");
     io::stdout().flush()?;
     Ok(())
 }
