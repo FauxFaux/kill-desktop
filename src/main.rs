@@ -121,6 +121,7 @@ fn main() -> Result<(), Error> {
         });
 
         if seen_windows.is_empty() && seen_pids.is_empty() {
+            println!(); // end of the prompt
             println!("No applications found, exiting.");
             break;
         }
