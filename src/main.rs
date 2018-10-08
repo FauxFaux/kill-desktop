@@ -21,7 +21,6 @@ mod term;
 mod x;
 
 use failure::Error;
-use failure::ResultExt;
 use nix::sys::termios;
 
 use config::Config;
@@ -130,7 +129,7 @@ fn find_procs(config: &Config, conn: &mut x::XServer) -> Result<Vec<(XWindow, Wi
 
     conn.for_windows(|conn, window_id| {
         match gather_window_details(&config, conn, window_id, &mut Hatred::default()) {
-            Ok(Some(proc)) => procs.push(proc),
+            Ok(Some(proc)) => procs.push((window_id, proc)),
             Ok(None) => (),
             Err(e) => eprintln!(
                 "couldn't get details (window vanished?): {:?} {:?}",
@@ -179,7 +178,7 @@ fn gather_window_details(
     conn: &x::XServer,
     window: x::XWindow,
     hatred: &mut Hatred,
-) -> Result<Option<(XWindow, WindowInfo)>, Error> {
+) -> Result<Option<WindowInfo>, Error> {
     let class = match conn.read_class(window) {
         Ok(class) => class,
         Err(e) => {
@@ -198,7 +197,7 @@ fn gather_window_details(
 
     let mut pids = match conn.pids(window) {
         Ok(pids) => pids,
-        Err(e) => {
+        Err(_) => {
             // TODO: complain somewhere?
             Vec::new()
         }
@@ -236,15 +235,12 @@ fn gather_window_details(
         }
     };
 
-    Ok(Some((
-        window,
-        WindowInfo {
-            pids,
-            class,
-            supports_delete,
-            title: String::new(), // TODO
-        },
-    )))
+    Ok(Some(WindowInfo {
+        pids,
+        class,
+        supports_delete,
+        title: String::new(), // TODO
+    }))
 }
 
 fn kill(pid: u32, signal: Option<nix::sys::signal::Signal>) -> Result<bool, Error> {
