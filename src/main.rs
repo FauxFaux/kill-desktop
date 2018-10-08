@@ -67,6 +67,7 @@ fn main() -> Result<(), Error> {
     let mut seen_windows: HashMap<XWindow, WindowInfo> = HashMap::new();
     let mut seen_pids = HashMap::new();
     let mut hatred = Hatred::default();
+    let mut start = true;
 
     'app: loop {
         let mut now_windows = find_windows(&config, &mut conn, &mut hatred)?;
@@ -124,6 +125,32 @@ fn main() -> Result<(), Error> {
             println!(); // end of the prompt
             println!("No applications found, exiting.");
             break;
+        }
+
+        if start {
+            for (window, info) in &seen_windows {
+                if config::any_apply(&info.class, &config.on_start_delete) {
+                    conn.delete_window(window)?;
+                }
+            }
+
+            for (_window, info) in &seen_windows {
+                if config::any_apply(&info.class, &config.on_start_term) {
+                    for &pid in &info.pids {
+                        kill(pid, Some(signal::SIGTERM))?;
+                    }
+                }
+            }
+
+            for (_window, info) in &seen_windows {
+                if config::any_apply(&info.class, &config.on_start_kill) {
+                    for &pid in &info.pids {
+                        kill(pid, Some(signal::SIGKILL))?;
+                    }
+                }
+            }
+
+            start = false;
         }
 
         if meaningful_change {
@@ -264,10 +291,8 @@ fn gather_window_details(
         }
     };
 
-    for ignore in &config.ignore {
-        if ignore.is_match(&class) {
-            return None;
-        }
+    if config::any_apply(&class, &config.ignore) {
+        return None;
     }
 
     let mut pids = match conn.pids(window) {

@@ -1,7 +1,19 @@
+# all expression lists are regexes, run against the *classname*
+# (the bit before the first hypen)
+# Rust's `regex` is used, which supports most pcre syntax.
+
+# list of windows to totally ignore from all processing
 ignore = [
-    "term",
-    "simplescreenrecorder",
+    "term", # we're probably in a terminal!
 ]
-ignores_delete = [
+
+on_start_delete = [
+    "gedit",
+]
+
+on_start_term = [
     "slack",
+]
+
+on_start_kill = [
 ]

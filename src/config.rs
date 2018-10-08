@@ -12,13 +12,17 @@ use toml;
 #[derive(Clone, Debug, Deserialize)]
 struct RawConfig {
     ignore: Vec<String>,
-    ignores_delete: Vec<String>,
+    on_start_delete: Vec<String>,
+    on_start_term: Vec<String>,
+    on_start_kill: Vec<String>,
 }
 
 #[derive(Clone, Debug)]
 pub struct Config {
     pub ignore: Vec<Regex>,
-    pub ignores_delete: Vec<Regex>,
+    pub on_start_delete: Vec<Regex>,
+    pub on_start_term: Vec<Regex>,
+    pub on_start_kill: Vec<Regex>,
 }
 
 pub fn config() -> Result<Config, Error> {
@@ -72,16 +76,24 @@ fn load_config() -> Result<RawConfig, Error> {
 impl RawConfig {
     fn into_config(self) -> Result<Config, Error> {
         Ok(Config {
-            ignore: self
-                .ignore
-                .into_iter()
-                .map(|s| Regex::new(&s))
-                .collect::<Result<Vec<_>, regex::Error>>()?,
-            ignores_delete: self
-                .ignores_delete
-                .into_iter()
-                .map(|s| Regex::new(&s))
-                .collect::<Result<Vec<_>, regex::Error>>()?,
+            ignore: to_regex_list(self.ignore)?,
+            on_start_delete: to_regex_list(self.on_start_delete)?,
+            on_start_term: to_regex_list(self.on_start_term)?,
+            on_start_kill: to_regex_list(self.on_start_kill)?,
         })
     }
+}
+
+fn to_regex_list<I: IntoIterator<Item = String>>(input: I) -> Result<Vec<Regex>, regex::Error> {
+    input.into_iter().map(|s| Regex::new(&s)).collect()
+}
+
+pub fn any_apply(class: &str, haystack: &[regex::Regex]) -> bool {
+    for ignore in haystack {
+        if ignore.is_match(class) {
+            return true;
+        }
+    }
+
+    false
 }
