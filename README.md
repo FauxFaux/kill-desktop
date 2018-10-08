@@ -6,6 +6,23 @@
 `kill-desktop` helps you exit your graphical applications without losing
  data. It can ask applications to exit, tell them to exit, and exit them.
 
+### Config
+
+There must be a config file. The app prefers xdg directories, then `.`.
+
+Start it with no config, and it will make and use one:
+```
+I couldn't find a config file at any of these locations:
+ * "/home/faux/.config/kill-desktop/config.toml"
+ * "/home/faux/.kill-desktop.toml"
+ * "kill-desktop.toml"
+
+So.. I'm going to make you one. I hope you like it:
+ * "/home/faux/.config/kill-desktop/config.toml"
+Done!
+```
+
+
 ### Demo
 
 `kill-desktop` presents the status of the current system,

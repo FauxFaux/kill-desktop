@@ -7,13 +7,16 @@ ignore = [
     "term", # we're probably in a terminal!
 ]
 
+# ask these apps to exit
 on_start_delete = [
     "gedit",
 ]
 
+# tell these apps to exit
 on_start_term = [
     "slack",
 ]
 
+# exit these apps
 on_start_kill = [
 ]

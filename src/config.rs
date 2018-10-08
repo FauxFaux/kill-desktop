@@ -1,5 +1,6 @@
 use std::fs;
 use std::io::Read;
+use std::io::Write;
 use std::path::PathBuf;
 
 use dirs;
@@ -59,10 +60,26 @@ fn find_config() -> Result<PathBuf, Error> {
 
     tried.push(config);
 
-    Err(format_err!(
-        "couldn't find a config file, tried: {:?}",
-        tried
-    ))
+    eprintln!("I couldn't find a config file at any of these locations:");
+    for location in &tried {
+        eprintln!(" * {:?}", location);
+    }
+    eprintln!();
+
+    eprintln!("So.. I'm going to make you one. I hope you like it:");
+    let write_to = tried
+        .into_iter()
+        .next()
+        .expect("this can't be empty, we just made it");
+    eprintln!(" * {:?}", write_to);
+
+    fs::File::create(&write_to)
+        .with_context(|_| format_err!("creating file"))?
+        .write_all(include_bytes!("../kill-desktop.toml"))?;
+
+    eprintln!("Done!");
+
+    Ok(write_to)
 }
 
 fn load_config() -> Result<RawConfig, Error> {
