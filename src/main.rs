@@ -129,13 +129,13 @@ fn main() -> Result<(), Error> {
 
         if start {
             for (window, info) in &seen_windows {
-                if config::any_apply(&info.class, &config.on_start_delete) {
+                if config::any_apply(&info.class, &config.on_start_ask) {
                     conn.delete_window(window)?;
                 }
             }
 
             for (_window, info) in &seen_windows {
-                if config::any_apply(&info.class, &config.on_start_term) {
+                if config::any_apply(&info.class, &config.on_start_tell) {
                     for &pid in &info.pids {
                         kill(pid, Some(signal::SIGTERM))?;
                     }
@@ -190,7 +190,7 @@ fn main() -> Result<(), Error> {
         }
 
         match stdin.recv_timeout(Duration::from_millis(50)) {
-            Ok(b'd') => {
+            Ok(b'a') | Ok(b'd') /* [d]elete */ => {
                 println!();
                 println!("Asking everyone to quit.");
                 for (window, _info) in &seen_windows {
@@ -250,7 +250,7 @@ fn kill_all(
 }
 
 fn action_prompt() -> Result<(), Error> {
-    print!("Action?  [d]elete, [t]erm, [k]ill, [q]uit? ");
+    print!("Apply to all: [a]sk to exit/[a]lt+f4, [t]ell to exit/[t]erm, [k]ill, or [q]uit? ");
     io::stdout().flush()?;
     Ok(())
 }

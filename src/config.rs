@@ -13,16 +13,16 @@ use toml;
 #[derive(Clone, Debug, Deserialize)]
 struct RawConfig {
     ignore: Vec<String>,
-    on_start_delete: Vec<String>,
-    on_start_term: Vec<String>,
+    on_start_ask: Vec<String>,
+    on_start_tell: Vec<String>,
     on_start_kill: Vec<String>,
 }
 
 #[derive(Clone, Debug)]
 pub struct Config {
     pub ignore: Vec<Regex>,
-    pub on_start_delete: Vec<Regex>,
-    pub on_start_term: Vec<Regex>,
+    pub on_start_ask: Vec<Regex>,
+    pub on_start_tell: Vec<Regex>,
     pub on_start_kill: Vec<Regex>,
 }
 
@@ -87,15 +87,16 @@ fn load_config() -> Result<RawConfig, Error> {
     let mut file = fs::File::open(&path).with_context(|_| format_err!("reading {:?}", path))?;
     let mut bytes = Vec::with_capacity(4096);
     file.read_to_end(&mut bytes)?;
-    Ok(toml::from_slice(&bytes)?)
+    Ok(toml::from_slice(&bytes)
+        .with_context(|_| format_err!("parsing .toml file: {:?}", path))?)
 }
 
 impl RawConfig {
     fn into_config(self) -> Result<Config, Error> {
         Ok(Config {
             ignore: to_regex_list(self.ignore)?,
-            on_start_delete: to_regex_list(self.on_start_delete)?,
-            on_start_term: to_regex_list(self.on_start_term)?,
+            on_start_ask: to_regex_list(self.on_start_ask)?,
+            on_start_tell: to_regex_list(self.on_start_tell)?,
             on_start_kill: to_regex_list(self.on_start_kill)?,
         })
     }

@@ -8,12 +8,12 @@ ignore = [
 ]
 
 # ask these apps to exit
-on_start_delete = [
+on_start_ask = [
     "gedit",
 ]
 
 # tell these apps to exit
-on_start_term = [
+on_start_tell = [
     "slack",
 ]
 
