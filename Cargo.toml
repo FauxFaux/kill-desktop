@@ -23,6 +23,7 @@ serde_derive = "1"
 serde = "1"
 terminal_size = "0.1"
 toml = "0.4"
+wcwidth = "1"
 xcb = "0.8"
 
 [profile.release]

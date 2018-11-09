@@ -7,6 +7,7 @@ extern crate nix;
 extern crate regex;
 extern crate terminal_size;
 extern crate toml;
+extern crate wcwidth;
 extern crate xcb;
 
 use std::collections::HashMap;
@@ -18,6 +19,7 @@ use std::sync::mpsc;
 use std::time::Duration;
 
 mod config;
+mod shrinky;
 mod term;
 mod x;
 
@@ -173,8 +175,7 @@ fn main() -> Result<(), Error> {
                 let used = 3 + info.class.len() + 3;
 
                 let title = if used < width_budget {
-                    // TODO: ooh, this can break utf-8
-                    &info.title[..info.title.len().min(width_budget - used)]
+                    shrinky::shorten_string_to(&info.title, width_budget - used)
                 } else {
                     &info.title
                 };
