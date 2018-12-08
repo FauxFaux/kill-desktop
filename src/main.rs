@@ -27,8 +27,8 @@ use failure::Error;
 use nix::sys::signal;
 use nix::sys::termios;
 
-use config::Config;
-use x::XWindow;
+use crate::config::Config;
+use crate::x::XWindow;
 
 // TODO: don't want this to be PartialEq/Eq
 #[derive(Clone, Debug, PartialEq, Eq)]

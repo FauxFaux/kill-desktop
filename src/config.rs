@@ -87,8 +87,7 @@ fn load_config() -> Result<RawConfig, Error> {
     let mut file = fs::File::open(&path).with_context(|_| format_err!("reading {:?}", path))?;
     let mut bytes = Vec::with_capacity(4096);
     file.read_to_end(&mut bytes)?;
-    Ok(toml::from_slice(&bytes)
-        .with_context(|_| format_err!("parsing .toml file: {:?}", path))?)
+    Ok(toml::from_slice(&bytes).with_context(|_| format_err!("parsing .toml file: {:?}", path))?)
 }
 
 impl RawConfig {

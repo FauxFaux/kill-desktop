@@ -37,5 +37,4 @@ fn shrink() {
     // TODO: needs new tables: https://github.com/lucy/wcwidth.rs/pull/2
     // TODO: assert_eq!("", shorten_string_to(unicode_11, 1));
     assert_eq!("", shorten_string_to(unicode_11, 0));
-
 }
