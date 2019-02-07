@@ -42,7 +42,7 @@ Here, we can see a load of applications running. This view is updated
 You are asked for an action. Let's ask everyone to shut down nicely:
 
 ```
-Apply to all: [a]sk to exit/[a]lt+f4, [t]ell to exit/[t]erm, [k]ill, or [q]uit? d
+Apply to all: [a]sk to exit/[a]lt+f4, [t]ell to exit/[t]erm, [k]ill, or [q]uit? a
 Asking everyone to quit.
 ```
 
