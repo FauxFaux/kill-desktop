@@ -354,7 +354,6 @@ fn gather_window_details(
 
 fn kill(pid: u32, signal: Option<nix::sys::signal::Signal>) -> Result<bool, Error> {
     use nix::errno::Errno;
-    use nix::sys::signal;
     use nix::unistd::Pid;
     assert!(pid <= ::std::i32::MAX as u32);
 

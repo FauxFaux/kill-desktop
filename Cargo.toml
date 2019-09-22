@@ -17,14 +17,14 @@ edition = "2018"
 repository = "FauxFaux/kill-desktop"
 
 [dependencies]
-dirs = "1"
+dirs = "2"
 failure = "0.1"
-nix = "0.12"
+nix = "0.15"
 regex = "1"
 serde_derive = "1"
 serde = "1"
 terminal_size = "0.1"
-toml = "0.4"
+toml = "0.5"
 wcwidth = "1"
 xcb = "0.8"
 
