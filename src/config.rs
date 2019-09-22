@@ -4,13 +4,14 @@ use std::io::Write;
 use std::path::PathBuf;
 
 use dirs;
+use failure::format_err;
 use failure::Error;
 use failure::ResultExt;
 use regex;
 use regex::Regex;
 use toml;
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, serde_derive::Deserialize)]
 struct RawConfig {
     ignore: Vec<String>,
     on_start_ask: Vec<String>,

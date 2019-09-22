@@ -1,15 +1,3 @@
-extern crate dirs;
-#[macro_use]
-extern crate serde_derive;
-#[macro_use]
-extern crate failure;
-extern crate nix;
-extern crate regex;
-extern crate terminal_size;
-extern crate toml;
-extern crate wcwidth;
-extern crate xcb;
-
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::env;
@@ -23,6 +11,7 @@ mod shrinky;
 mod term;
 mod x;
 
+use failure::bail;
 use failure::Error;
 use nix::sys::signal;
 use nix::sys::termios;
@@ -136,7 +125,7 @@ fn main() -> Result<(), Error> {
                 }
             }
 
-            for (_window, info) in &seen_windows {
+            for info in seen_windows.values() {
                 if config::any_apply(&info.class, &config.on_start_tell) {
                     for &pid in &info.pids {
                         kill(pid, Some(signal::SIGTERM))?;
@@ -144,7 +133,7 @@ fn main() -> Result<(), Error> {
                 }
             }
 
-            for (_window, info) in &seen_windows {
+            for info in seen_windows.values() {
                 if config::any_apply(&info.class, &config.on_start_kill) {
                     for &pid in &info.pids {
                         kill(pid, Some(signal::SIGKILL))?;
@@ -194,7 +183,7 @@ fn main() -> Result<(), Error> {
             Ok(b'a') | Ok(b'd') /* [d]elete */ => {
                 println!();
                 println!("Asking everyone to quit.");
-                for (window, _info) in &seen_windows {
+                for window in seen_windows.keys() {
                     conn.delete_window(window)?;
                 }
             }
@@ -236,7 +225,7 @@ fn kill_all(
     sig: signal::Signal,
 ) -> Result<bool, Error> {
     let mut did_anything = false;
-    for (_window, info) in seen_windows {
+    for info in seen_windows.values() {
         for pid in &info.pids {
             did_anything |= kill(*pid, Some(sig))?;
         }

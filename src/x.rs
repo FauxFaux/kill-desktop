@@ -1,5 +1,6 @@
 use std::env;
 
+use failure::format_err;
 use failure::Error;
 use failure::ResultExt;
 use xcb;
