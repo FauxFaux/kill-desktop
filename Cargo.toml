@@ -1,6 +1,6 @@
 [package]
 name = "kill-desktop"
-version = "0.3.1"
+version = "0.3.2"
 authors = ["Chris West (Faux) <git@goeswhere.com>"]
 
 description = "Wait politetly for graphical applications to exit"
