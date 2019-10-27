@@ -1,5 +1,5 @@
 pub fn shorten_string_to(mut val: &str, target: usize) -> &str {
-    while !val.is_empty() && wcwidth::str_width(val).unwrap() > target {
+    while !val.is_empty() && unicode_width::UnicodeWidthStr::width(val) > target {
         val = pop_char(val);
     }
 

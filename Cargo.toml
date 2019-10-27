@@ -24,7 +24,7 @@ serde_derive = "1"
 serde = "1"
 terminal_size = "0.1"
 toml = "0.5"
-wcwidth = "1"
+unicode-width = "0.1"
 xcb = "0.8"
 
 [dependencies.failure]
