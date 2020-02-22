@@ -1,6 +1,6 @@
 [package]
 name = "kill-desktop"
-version = "0.3.2"
+version = "0.3.3"
 authors = ["Chris West (Faux) <git@goeswhere.com>"]
 
 description = "Wait politetly for graphical applications to exit"
@@ -18,14 +18,14 @@ repository = "FauxFaux/kill-desktop"
 
 [dependencies]
 dirs = "2"
-nix = "0.15"
+nix = "0.17"
 regex = "1"
 serde_derive = "1"
 serde = "1"
 terminal_size = "0.1"
 toml = "0.5"
 unicode-width = "0.1"
-xcb = "0.8"
+xcb = "0.9"
 
 [dependencies.failure]
 default-features = false
