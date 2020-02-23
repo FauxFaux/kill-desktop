@@ -1,6 +1,6 @@
 [package]
 name = "kill-desktop"
-version = "0.3.3"
+version = "0.3.4"
 authors = ["Chris West (Faux) <git@goeswhere.com>"]
 
 description = "Wait politetly for graphical applications to exit"
@@ -29,6 +29,7 @@ xcb = "0.9"
 
 [dependencies.failure]
 default-features = false
+features = ["std"]
 version = "0.1"
 
 [profile.release]
