@@ -3,10 +3,10 @@ use std::io::Read;
 use std::io::Write;
 use std::path::PathBuf;
 
+use anyhow::anyhow;
+use anyhow::Context;
+use anyhow::Error;
 use dirs;
-use failure::format_err;
-use failure::Error;
-use failure::ResultExt;
 use regex;
 use regex::Regex;
 use toml;
@@ -75,7 +75,7 @@ fn find_config() -> Result<PathBuf, Error> {
     eprintln!(" * {:?}", write_to);
 
     fs::File::create(&write_to)
-        .with_context(|_| format_err!("creating file"))?
+        .with_context(|| anyhow!("creating file"))?
         .write_all(include_bytes!("../kill-desktop.toml"))?;
 
     eprintln!("Done!");
@@ -85,10 +85,10 @@ fn find_config() -> Result<PathBuf, Error> {
 
 fn load_config() -> Result<RawConfig, Error> {
     let path = find_config()?;
-    let mut file = fs::File::open(&path).with_context(|_| format_err!("reading {:?}", path))?;
+    let mut file = fs::File::open(&path).with_context(|| anyhow!("reading {:?}", path))?;
     let mut bytes = Vec::with_capacity(4096);
     file.read_to_end(&mut bytes)?;
-    Ok(toml::from_slice(&bytes).with_context(|_| format_err!("parsing .toml file: {:?}", path))?)
+    Ok(toml::from_slice(&bytes).with_context(|| anyhow!("parsing .toml file: {:?}", path))?)
 }
 
 impl RawConfig {

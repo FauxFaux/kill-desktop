@@ -1,8 +1,8 @@
 use std::env;
 
-use failure::format_err;
-use failure::Error;
-use failure::ResultExt;
+use anyhow::anyhow;
+use anyhow::Context;
+use anyhow::Error;
 use xcb;
 use xcb::xproto as xp;
 
@@ -26,8 +26,8 @@ struct ExtraAtoms {
 
 impl XServer {
     pub fn new() -> Result<XServer, Error> {
-        let (conn, _preferred_screen) = xcb::Connection::connect(None).with_context(|_| {
-            format_err!(
+        let (conn, _preferred_screen) = xcb::Connection::connect(None).with_context(|| {
+            anyhow!(
                 "connecting using DISPLAY={:?}",
                 env::var("DISPLAY").unwrap_or_else(|_| "{unspecified/invalid}".to_string())
             )
@@ -134,6 +134,6 @@ impl XServer {
 fn existing_atom(conn: &xcb::Connection, name: &'static str) -> Result<xcb::Atom, Error> {
     Ok(xcb::intern_atom(&conn, true, name)
         .get_reply()
-        .with_context(|_| format_err!("WM doesn't support {}", name))?
+        .with_context(|| anyhow!("WM doesn't support {}", name))?
         .atom())
 }

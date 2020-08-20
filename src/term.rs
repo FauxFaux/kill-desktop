@@ -5,7 +5,7 @@ use std::os::unix::io::RawFd;
 use std::sync::mpsc;
 use std::thread;
 
-use failure::Error;
+use anyhow::Error;
 use nix::sys::termios;
 
 pub struct StdOutTermios {
