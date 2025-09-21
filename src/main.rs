@@ -11,8 +11,8 @@ mod shrinky;
 mod term;
 mod x;
 
-use anyhow::bail;
 use anyhow::Error;
+use anyhow::bail;
 use nix::sys::signal;
 use nix::sys::termios;
 

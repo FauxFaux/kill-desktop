@@ -1,10 +1,10 @@
 use std::env;
 
-use anyhow::anyhow;
 use anyhow::Context;
 use anyhow::Error;
+use anyhow::anyhow;
 
-use xcb::{x as xp, Xid};
+use xcb::{Xid, x as xp};
 
 pub struct XServer {
     conn: xcb::Connection,
@@ -103,7 +103,6 @@ impl XServer {
         self.conn.check_request(cookie)?;
         Ok(())
     }
-
 
     pub fn pids(&self, window: XWindow) -> Result<Vec<u32>, Error> {
         Ok(self.get_property::<u32>(window, self.atoms.net_wm_pid, xp::ATOM_CARDINAL, 64)?)

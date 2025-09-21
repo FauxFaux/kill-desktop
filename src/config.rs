@@ -3,9 +3,9 @@ use std::io::Read;
 use std::io::Write;
 use std::path::PathBuf;
 
-use anyhow::anyhow;
 use anyhow::Context;
 use anyhow::Error;
+use anyhow::anyhow;
 use dirs;
 use regex;
 use regex::Regex;
