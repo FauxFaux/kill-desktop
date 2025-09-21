@@ -19,14 +19,14 @@ repository = "FauxFaux/kill-desktop"
 [dependencies]
 anyhow = "1"
 dirs = "6"
-nix = "0.20"
+nix = "0.26"
 regex = "1"
 serde_derive = "1"
 serde = "1"
-terminal_size = "0.1"
-toml = "0.5"
-unicode-width = "0.1"
-xcb = "0.9"
+terminal_size = "0.4"
+toml = "0.9"
+unicode-width = "0.2"
+xcb = "0.10"
 
 [profile.release]
 lto = true

@@ -348,7 +348,7 @@ fn kill(pid: u32, signal: Option<nix::sys::signal::Signal>) -> Result<bool, Erro
 
     Ok(match signal::kill(Pid::from_raw(pid as i32), signal) {
         Ok(()) => true,
-        Err(nix::Error::Sys(Errno::ESRCH)) => false,
+        Err(Errno::ESRCH) => false,
         other => bail!("kill {} failed: {:?}", pid, other),
     })
 }
