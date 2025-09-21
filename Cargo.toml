@@ -19,7 +19,7 @@ repository = "FauxFaux/kill-desktop"
 [dependencies]
 anyhow = "1"
 dirs = "6"
-nix = "0.26"
+nix = { version = "0.30", features = [ "term", "signal" ] }
 regex = "1"
 serde_derive = "1"
 serde = "1"

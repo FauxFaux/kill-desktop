@@ -1,7 +1,6 @@
 use std::io;
 use std::io::Read;
-use std::os::unix::io::AsRawFd;
-use std::os::unix::io::RawFd;
+use std::os::fd::AsFd;
 use std::sync::mpsc;
 use std::thread;
 
@@ -9,7 +8,6 @@ use anyhow::Error;
 use nix::sys::termios;
 
 pub struct StdOutTermios {
-    fd: RawFd,
     original: termios::Termios,
 }
 
@@ -19,18 +17,20 @@ impl StdOutTermios {
         F: FnOnce(&mut termios::Termios),
     {
         let out = io::stdout();
-        let fd = out.as_raw_fd();
+        let fd = out.as_fd();
         let original = termios::tcgetattr(fd)?;
         let mut updated = original.clone();
         func(&mut updated);
         termios::tcsetattr(fd, termios::SetArg::TCSANOW, &updated)?;
-        Ok(StdOutTermios { fd, original })
+        Ok(StdOutTermios { original })
     }
 }
 
 impl Drop for StdOutTermios {
     fn drop(&mut self) {
-        let _ = termios::tcsetattr(self.fd, termios::SetArg::TCSANOW, &self.original);
+        let out = io::stdout();
+        let fd = out.as_fd();
+        let _ = termios::tcsetattr(fd, termios::SetArg::TCSANOW, &self.original);
     }
 }
 
