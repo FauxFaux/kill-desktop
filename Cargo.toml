@@ -18,7 +18,7 @@ repository = "FauxFaux/kill-desktop"
 
 [dependencies]
 anyhow = "1"
-dirs = "3"
+dirs = "6"
 nix = "0.20"
 regex = "1"
 serde_derive = "1"
