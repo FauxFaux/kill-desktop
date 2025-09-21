@@ -3,8 +3,8 @@ use std::env;
 use anyhow::anyhow;
 use anyhow::Context;
 use anyhow::Error;
-use xcb;
-use xcb::xproto as xp;
+
+use xcb::{x as xp, Xid};
 
 pub struct XServer {
     conn: xcb::Connection,
@@ -12,16 +12,19 @@ pub struct XServer {
 }
 
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
-pub struct XWindow(pub xcb::Window);
+pub struct XWindow(pub xp::Window);
 
-#[derive(Copy, Clone, Debug)]
-struct ExtraAtoms {
-    net_client_list: xcb::Atom,
-    net_wm_pid: xcb::Atom,
-    net_wm_name: xcb::Atom,
-    wm_protocols: xcb::Atom,
-    wm_delete_window: xcb::Atom,
-    utf8: xcb::Atom,
+xcb::atoms_struct! {
+    #[derive(Debug)]
+    struct ExtraAtoms {
+        net_client_list  => b"_NET_CLIENT_LIST",
+        net_wm_pid       => b"_NET_WM_PID",
+        net_wm_name      => b"_NET_WM_NAME",
+        wm_protocols     => b"WM_PROTOCOLS",
+        wm_delete_window => b"WM_DELETE_WINDOW",
+        utf8             => b"UTF8_STRING",
+
+    }
 }
 
 impl XServer {
@@ -33,14 +36,7 @@ impl XServer {
             )
         })?;
 
-        let atoms = ExtraAtoms {
-            net_client_list: existing_atom(&conn, "_NET_CLIENT_LIST")?,
-            net_wm_pid: existing_atom(&conn, "_NET_WM_PID")?,
-            net_wm_name: existing_atom(&conn, "_NET_WM_NAME")?,
-            wm_protocols: existing_atom(&conn, "WM_PROTOCOLS")?,
-            wm_delete_window: existing_atom(&conn, "WM_DELETE_WINDOW")?,
-            utf8: existing_atom(&conn, "UTF8_STRING")?,
-        };
+        let atoms = ExtraAtoms::intern_all(&conn)?;
 
         Ok(XServer { conn, atoms })
     }
@@ -50,7 +46,7 @@ impl XServer {
         F: FnMut(&XServer, XWindow),
     {
         for screen in self.conn.get_setup().roots() {
-            for window_id in self.get_property::<xcb::Window>(
+            for window_id in self.get_property::<xp::Window>(
                 XWindow(screen.root()),
                 self.atoms.net_client_list,
                 xp::ATOM_WINDOW,
@@ -73,8 +69,8 @@ impl XServer {
     fn read_string(
         &self,
         window_id: XWindow,
-        atom: xcb::Atom,
-        prop_type: xcb::Atom,
+        atom: xp::Atom,
+        prop_type: xp::Atom,
     ) -> Result<String, Error> {
         let string = self.get_property::<u8>(window_id, atom, prop_type, 1024)?;
         let string = match string.iter().position(|b| 0 == *b) {
@@ -85,28 +81,29 @@ impl XServer {
     }
 
     pub fn delete_window(&mut self, window: &XWindow) -> Result<(), Error> {
-        let event = xcb::xproto::ClientMessageEvent::new(
-            32,
+        let event = xp::ClientMessageEvent::new(
             window.0,
             self.atoms.wm_protocols,
-            xcb::xproto::ClientMessageData::from_data32([
-                self.atoms.wm_delete_window,
-                xcb::CURRENT_TIME,
+            xp::ClientMessageData::Data32([
+                self.atoms.wm_delete_window.resource_id(),
+                xp::CURRENT_TIME,
                 0,
                 0,
                 0,
             ]),
         );
-        xcb::send_event_checked(
-            &self.conn,
-            true,
-            window.0,
-            xcb::xproto::EVENT_MASK_NO_EVENT,
-            &event,
-        )
-        .request_check()?;
+
+        let cookie = self.conn.send_request_checked(&xp::SendEvent {
+            propagate: false,
+            destination: xp::SendEventDest::Window(window.0),
+            event_mask: xp::EventMask::NO_EVENT,
+            event: &event,
+        });
+
+        self.conn.check_request(cookie)?;
         Ok(())
     }
+
 
     pub fn pids(&self, window: XWindow) -> Result<Vec<u32>, Error> {
         Ok(self.get_property::<u32>(window, self.atoms.net_wm_pid, xp::ATOM_CARDINAL, 64)?)
@@ -115,25 +112,25 @@ impl XServer {
     pub fn supports_delete(&self, window: XWindow) -> Result<bool, Error> {
         let supported =
             self.get_property::<u32>(window, self.atoms.wm_protocols, xp::ATOM_ATOM, 1_024)?;
-        Ok(supported.contains(&self.atoms.wm_delete_window))
+        Ok(supported.contains(&self.atoms.wm_delete_window.resource_id()))
     }
 
-    fn get_property<T: Clone>(
+    fn get_property<T: Clone + xp::PropEl>(
         &self,
         window: XWindow,
-        property: xcb::Atom,
-        prop_type: xcb::Atom,
+        property: xp::Atom,
+        prop_type: xp::Atom,
         length: u32,
     ) -> Result<Vec<T>, Error> {
-        let req = xcb::get_property(&self.conn, false, window.0, property, prop_type, 0, length);
-        let reply = req.get_reply()?;
+        let cookie = self.conn.send_request(&xp::GetProperty {
+            delete: false,
+            window: window.0,
+            property,
+            r#type: prop_type,
+            long_offset: 0,
+            long_length: length,
+        });
+        let reply = self.conn.wait_for_reply(cookie)?;
         Ok(reply.value::<T>().to_vec())
     }
-}
-
-fn existing_atom(conn: &xcb::Connection, name: &'static str) -> Result<xcb::Atom, Error> {
-    Ok(xcb::intern_atom(&conn, true, name)
-        .get_reply()
-        .with_context(|| anyhow!("WM doesn't support {}", name))?
-        .atom())
 }
