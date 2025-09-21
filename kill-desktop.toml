@@ -5,6 +5,7 @@
 # list of windows to totally ignore from all processing
 ignore = [
     "term", # we're probably in a terminal!
+    "Terminal",
 ]
 
 # ask these apps to exit
